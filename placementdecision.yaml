@@ -1,0 +1,9 @@
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: PlacementDecision
+metadata:
+  name: ${TESTID}-placement-decision-1
+  namespace: ${RAMENOPSNAMESPACE}
+status:
+  decisions:
+  - clusterName: ${PREFERRED_CLUSTER}
+    reason: ${PREFERRED_CLUSTER}

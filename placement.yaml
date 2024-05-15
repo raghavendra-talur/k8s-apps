@@ -1,0 +1,16 @@
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  annotations:
+    cluster.open-cluster-management.io/experimental-scheduling-disable: "true"
+  labels:
+    appname: busybox
+  name: ${TESTID}-placement
+  namespace: ${RAMENOPSNAMESPACE}
+spec:
+  clusterSets:
+  - default
+  numberOfClusters: 1
+  prioritizerPolicy:
+    mode: Additive
+  spreadPolicy: {}
