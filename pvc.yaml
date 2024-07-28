@@ -7,7 +7,7 @@ metadata:
   namespace: ${NAMESPACE}
 spec:
   accessModes:
-  - ReadWriteOnce
+  - ${ACCESS_MODE}
   resources:
     requests:
       storage: 1Gi
