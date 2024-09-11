@@ -87,6 +87,7 @@ var (
 	startAtState      state
 	stopAtState       state
 	currentState      = startState
+	useRecipe         bool
 )
 
 func showCurrentState() {
@@ -130,6 +131,11 @@ func setup() {
 		failoverCluster = dr2
 	}
 
+	recipeEnv := os.Getenv("USE_RECIPE")
+	if recipeEnv == "true" || recipeEnv == "1" {
+		useRecipe = true
+	}
+
 	stopAt = os.Getenv("STOP_AT")
 	if stopAt == "" {
 		stopAt = "deployapp"
@@ -144,13 +150,13 @@ func setup() {
 
 	rbdCountEnv := os.Getenv("DEPLOYMENT_RBD_COUNT")
 	if rbdCountEnv == "" {
-		rbdCountEnv = "0"
+		rbdCountEnv = "1"
 	}
 	rbdCount, _ = strconv.Atoi(rbdCountEnv)
 
 	cephfsCountEnv := os.Getenv("DEPLOYMENT_CEPHFS_COUNT")
 	if cephfsCountEnv == "" {
-		cephfsCountEnv = "1"
+		cephfsCountEnv = "0"
 	}
 	cephfsCount, _ = strconv.Atoi(cephfsCountEnv)
 
@@ -179,6 +185,7 @@ func setup() {
 	log.Printf("START_AT: %s\n", startAt)
 	log.Printf("START_AT_STATE: %s\n", startAtState)
 	log.Printf("STOP_AT_STATE: %s\n", stopAtState)
+	log.Printf("USE_RECIPE: %v\n", useRecipe)
 }
 
 func deployApplications() {
@@ -188,6 +195,8 @@ func deployApplications() {
 
 	createNamespaces(namespaces, preferredCluster)
 	createNamespaces(namespaces, failoverCluster)
+	deployRecipe(namespaces[0], preferredCluster)
+	deployRecipe(namespaces[0], failoverCluster)
 	// Deploy resources for RBD and CephFS storage classes
 	deployResources("rook-ceph-block", rbdCount, preferredCluster)
 	deployResources("rook-cephfs", cephfsCount, preferredCluster)
@@ -244,11 +253,21 @@ func createNamespaces(namespaces []string, kcontext string) {
 	}
 }
 
+func deployRecipe(namespace string, kcontext string) {
+	recipeYaml := loadTemplate("recipe.yaml", "", "", namespace)
+	applyYaml(recipeYaml, kcontext)
+}
+
 func enableDR() {
 	if startAtState > enabledrState || stopAtState < enabledrState {
 		return
 	}
-	drpcYaml := loadTemplate("drpc.yaml", "", "", "")
+
+	drpcyaml := "drpc.yaml"
+	if useRecipe {
+		drpcyaml = "drpcrecipe.yaml"
+	}
+	drpcYaml := loadTemplate(drpcyaml, "", "", "")
 	placementYaml := loadTemplate("placement.yaml", "", "", "")
 	placementDecisionYaml := loadTemplate("placementdecision.yaml", "", "", "")
 	applyYaml(drpcYaml, hub)
@@ -337,7 +356,12 @@ func disableDR() {
 	if startAtState > disabledrState || stopAtState < disabledrState {
 		return
 	}
-	drpcYaml := loadTemplate("drpc.yaml", "", "", "")
+
+	drpcyaml := "drpc.yaml"
+	if useRecipe {
+		drpcyaml = "drpcrecipe.yaml"
+	}
+	drpcYaml := loadTemplate(drpcyaml, "", "", "")
 	restype, name, ns := getResourceDetailsFromYAML(drpcYaml)
 	deleteResource(hub, restype, name, ns)
 	removeFinalizer(hub, restype, name, ns)
@@ -361,7 +385,13 @@ func failover() {
 	if startAtState > failoverState || stopAtState < failoverState {
 		return
 	}
-	drpcYaml := loadTemplate("drpc.yaml", "", "", "")
+
+	drpcyaml := "drpc.yaml"
+	if useRecipe {
+		drpcyaml = "drpcrecipe.yaml"
+	}
+
+	drpcYaml := loadTemplate(drpcyaml, "", "", "")
 	applyYaml(drpcYaml, hub)
 
 	resourceName := fmt.Sprintf("drplacementcontrols.ramendr.openshift.io/%v-drpc", testID)
@@ -380,7 +410,12 @@ func relocate() {
 	}
 	log.Default().Println("Relocating resources")
 
-	drpcYaml := loadTemplate("drpc.yaml", "", "", "")
+	drpcyaml := "drpc.yaml"
+	if useRecipe {
+		drpcyaml = "drpcrecipe.yaml"
+	}
+
+	drpcYaml := loadTemplate(drpcyaml, "", "", "")
 	applyYaml(drpcYaml, hub)
 
 	resourceName := fmt.Sprintf("drplacementcontrols.ramendr.openshift.io/%v-drpc", testID)
@@ -399,6 +434,7 @@ func generateNamespaces(count int) []string {
 		namespace := fmt.Sprintf("%s-ns-%d", testID, i)
 		namespaces = append(namespaces, namespace)
 	}
+	log.Printf("Namespaces: %v\n", namespaces)
 	return namespaces
 }
 
@@ -487,8 +523,10 @@ func loadTemplate(filename, deploymentName, storageClass, namespace string) stri
 		yamlContent = strings.ReplaceAll(yamlContent, "${ACCESS_MODE}", "ReadWriteOnce")
 	}
 
-	if filename == "drpc.yaml" {
+	if filename == "drpc.yaml" || filename == "drpcrecipe.yaml" {
 		yamlContent = strings.ReplaceAll(yamlContent, "${PROTECTED_NAMESPACES}", formatProtectedNamespaces(namespaces))
+		yamlContent = strings.ReplaceAll(yamlContent, "${RECIPE_NAME}", fmt.Sprintf("%s-recipe", testID))
+		yamlContent = strings.ReplaceAll(yamlContent, "${RECIPE_NAMESPACE}", namespace)
 	}
 
 	return yamlContent

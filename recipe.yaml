@@ -1,0 +1,46 @@
+apiVersion: ramendr.openshift.io/v1alpha1
+kind: Recipe
+metadata:
+  name: ${TESTID}-recipe
+  namespace: ${NAMESPACE}
+  labels:
+    appname: busybox
+spec:
+  appType: busybox
+  captureWorkflow:
+    failOn: any-error
+    sequence:
+    - group: my-resources
+  groups:
+  - excludedResourceTypes:
+    - event
+    - event.events.k8s.io
+    - imagetags.openshift.io
+    - pod
+    - installplans.operators.coreos.com
+    includedNamespaces:
+    - ${NAMESPACE}
+    labelSelector:
+      matchExpressions:
+      - key: ramenshouldignorethis
+        operator: NotIn
+        values:
+        - "true"
+    name: my-resources
+    type: resource
+  hooks:
+  recoverWorkflow:
+    failOn: any-error
+    sequence:
+    - group: my-resources
+  volumes:
+    includedNamespaces:
+    - ${NAMESPACE}
+    labelSelector:
+      matchExpressions:
+      - key: ramenshouldignorethis
+        operator: NotIn
+        values:
+        - "true"
+    name: busybox-volumes
+    type: volume

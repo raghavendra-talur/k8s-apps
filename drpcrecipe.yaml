@@ -1,0 +1,25 @@
+apiVersion: ramendr.openshift.io/v1alpha1
+kind: DRPlacementControl
+metadata:
+  name: ${TESTID}-drpc
+  namespace: ${RAMENOPSNAMESPACE}
+  labels:
+    appname: busybox
+spec:
+  preferredCluster: ${PREFERRED_CLUSTER}
+  failoverCluster: ${FAILOVER_CLUSTER}
+  drPolicyRef:
+    name: dr-policy
+  placementRef:
+    kind: Placement
+    name: ${TESTID}-placement
+  pvcSelector:
+    matchLabels:
+      appname: busybox
+  kubeObjectProtection:
+    recipeRef:
+      name: ${RECIPE_NAME}
+      namespace: ${RECIPE_NAMESPACE}
+  protectedNamespaces:
+${PROTECTED_NAMESPACES}
+
